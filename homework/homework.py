@@ -49,8 +49,63 @@ def clean_campaign_data():
 
 
     """
+    import pandas as pd
+    import zipfile
+    from pathlib import Path
 
-    return
+    input_dir = Path("files/input")
+    output_dir = Path("files/output")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    dfs = []
+    for zip_file in sorted(input_dir.glob("*.zip")):
+        with zipfile.ZipFile(zip_file, "r") as z:
+            dfs.append(pd.read_csv(z.open(z.namelist()[0])))
+
+    df = pd.concat(dfs, ignore_index=True)
+
+    client_df = pd.DataFrame(
+        {
+            "client_id": df["client_id"],
+            "age": df["age"],
+            "job": df["job"]
+            .str.replace(".", "", regex=False)
+            .str.replace("-", "_", regex=False),
+            "marital": df["marital"],
+            "education": df["education"]
+            .str.replace(".", "_", regex=False)
+            .replace("unknown", pd.NA),
+            "credit_default": (df["credit_default"] == "yes").astype(int),
+            "mortgage": (df["mortgage"] == "yes").astype(int),
+        }
+    )
+
+    campaign_df = pd.DataFrame(
+        {
+            "client_id": df["client_id"],
+            "number_contacts": df["number_contacts"],
+            "contact_duration": df["contact_duration"],
+            "previous_campaign_contacts": df["previous_campaign_contacts"],
+            "previous_outcome": (df["previous_outcome"] == "success").astype(int),
+            "campaign_outcome": (df["campaign_outcome"] == "yes").astype(int),
+            "last_contact_date": pd.to_datetime(
+                df["day"].astype(str) + "-" + df["month"].astype(str) + "-2022",
+                format="%d-%b-%Y",
+            ).dt.strftime("%Y-%m-%d"),
+        }
+    )
+
+    economics_df = pd.DataFrame(
+        {
+            "client_id": df["client_id"],
+            "cons_price_idx": df["cons_price_idx"],
+            "euribor_three_months": df["euribor_three_months"],
+        }
+    )
+
+    client_df.to_csv(output_dir / "client.csv", index=False)
+    campaign_df.to_csv(output_dir / "campaign.csv", index=False)
+    economics_df.to_csv(output_dir / "economics.csv", index=False)
 
 
 if __name__ == "__main__":
